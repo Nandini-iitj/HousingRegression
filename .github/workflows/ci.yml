@@ -1,0 +1,134 @@
+name: Housing Regression CI Pipeline
+
+on:
+  push:
+    branches: [ main, reg_branch, hyper_branch ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.8, 3.9, 3.10]
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Lint with flake8
+      run: |
+        # Stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Exit-zero treats all errors as warnings
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
+    
+    - name: Format check with black
+      run: |
+        black --check --diff .
+    
+    - name: Test data loading
+      run: |
+        python -c "from utils import load_data; df = load_data(); print(f'Dataset loaded successfully with shape: {df.shape}')"
+    
+    - name: Run basic regression
+      run: |
+        python regression.py --mode basic
+    
+    - name: Run hyperparameter tuning (only on main branch)
+      if: github.ref == 'refs/heads/main'
+      run: |
+        python regression.py --mode hyperparameter
+    
+    - name: Archive results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: regression-results-${{ matrix.python-version }}
+        path: |
+          *.json
+          *.txt
+          models/
+    
+    - name: Display results summary
+      if: always()
+      run: |
+        echo "=== CI Pipeline Results ==="
+        if [ -f "basic_regression_summary.txt" ]; then
+          echo "Basic Regression Summary:"
+          cat basic_regression_summary.txt
+        fi
+        if [ -f "hyperparameter_tuning_summary.txt" ]; then
+          echo "Hyperparameter Tuning Summary:"
+          cat hyperparameter_tuning_summary.txt
+        fi
+
+  performance-comparison:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v3
+      with:
+        python-version: 3.9
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Run complete analysis
+      run: |
+        python regression.py --mode both
+    
+    - name: Generate performance report
+      run: |
+        python -c "
+        import json
+        try:
+            with open('basic_regression_results.json', 'r') as f:
+                basic = json.load(f)
+            with open('hyperparameter_tuning_results.json', 'r') as f:
+                tuned = json.load(f)
+            
+            print('=== PERFORMANCE COMPARISON REPORT ===')
+            print('Basic vs Hyperparameter Tuned Models')
+            print('-' * 50)
+            
+            for model in ['Linear_Regression', 'Random_Forest', 'Support_Vector_Regression']:
+                if model in basic and model in tuned:
+                    basic_r2 = basic[model]['R2']
+                    tuned_r2 = tuned[model]['R2']
+                    improvement = ((tuned_r2 - basic_r2) / basic_r2) * 100 if basic_r2 != 0 else 0
+                    
+                    print(f'{model}:')
+                    print(f'  Basic R²:     {basic_r2:.4f}')
+                    print(f'  Tuned R²:     {tuned_r2:.4f}')
+                    print(f'  Improvement:  {improvement:.2f}%')
+                    print()
+        except Exception as e:
+            print(f'Error generating comparison: {e}')
+        "
+    
+    - name: Archive final results
+      uses: actions/upload-artifact@v3
+      with:
+        name: final-regression-analysis
+        path: |
+          *.json
+          *.txt
+          models/

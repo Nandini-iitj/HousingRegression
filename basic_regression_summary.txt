@@ -1,0 +1,27 @@
+HOUSE PRICE PREDICTION - MODEL PERFORMANCE REPORT
+============================================================
+
+Generated on: 2025-07-03 17:20:48
+
+MODEL PERFORMANCE COMPARISON:
+----------------------------------------
+
+Linear_Regression:
+  Mean Squared Error (MSE): 24.2911
+  R-squared (R²):          0.6688
+  Root MSE (RMSE):         4.9286
+
+Random_Forest:
+  Mean Squared Error (MSE): 7.9127
+  R-squared (R²):          0.8921
+  Root MSE (RMSE):         2.8130
+
+Support_Vector_Regression:
+  Mean Squared Error (MSE): 25.6685
+  R-squared (R²):          0.6500
+  Root MSE (RMSE):         5.0664
+
+BEST PERFORMING MODEL: Random_Forest
+Best R² Score: 0.8921
+
+============================================================
